@@ -6,8 +6,8 @@ import (
 	"github.com/lithammer/dedent"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"github.com/weaveworks/ignite/cmd/ignite/cmd/cmdutil"
 	"github.com/weaveworks/ignite/cmd/ignite/run"
-	"github.com/weaveworks/ignite/pkg/errutils"
 )
 
 // NewCmdSSH SSH's into a running vm
@@ -25,7 +25,7 @@ func NewCmdSSH(out io.Writer) *cobra.Command {
 		`),
 		Args: cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			errutils.Check(func() error {
+			cmdutil.CheckErr(func() error {
 				so, err := sf.NewSSHOptions(args[0])
 				if err != nil {
 					return err
@@ -42,4 +42,5 @@ func NewCmdSSH(out io.Writer) *cobra.Command {
 
 func addSSHFlags(fs *pflag.FlagSet, sf *run.SSHFlags) {
 	fs.StringVarP(&sf.IdentityFile, "identity", "i", "", "Override the vm's default identity file")
+	fs.Uint32VarP(&sf.Timeout, "timeout", "t", 10, "Timeout waiting for connection in seconds")
 }

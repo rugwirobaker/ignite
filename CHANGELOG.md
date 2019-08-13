@@ -2,9 +2,338 @@
 
 # Changelog
 
+## v0.5.0
+
+**Released:** 13/08/2019
+
+This release consists of **54** noteworthy PRs from 12 contributors.
+We had **14** contributions from 8 external contributors, thanks!
+
+The main themes of this release has been:
+
+- **Persistent Storage:** Block Device support added as the first external volume type
+- **Improved API:** We're continuously improving the API; this release contains `ignite.weave.works/v1alpha2` (still backwards-compatible with `v1alpha1`)
+- **Read-write GitOps:** In GitOps mode, Ignite now also pushes the actual state in `.status` back to the repo
+- **Refactoring towards a client-server model:** We're now shipping `ignited` that holds the reconciling GitOps and Manifest Directory modes
+- **Multi-platform:** We're now shipping ARM 64-bit binaries that you can use on e.g. Packet (and eventually, Raspberry Pi 4!)
+
+Also, our documentation is now available at **[https://ignite.readthedocs.org](https://ignite.readthedocs.org)**.
+Check that site out whenever you need some information, or open an issue :)
+
+### New Features
+
+- Support external volumes (block devices) in Ignite VMs ([#275](https://github.com/weaveworks/ignite/pull/275), [@twelho](https://github.com/twelho))
+- Add ARM64 support ([#173](https://github.com/weaveworks/ignite/pull/173), [@luxas](https://github.com/luxas))
+- Add new binary:  `ignited` ([#264](https://github.com/weaveworks/ignite/pull/264), [@luxas](https://github.com/luxas))
+- Add new command: `ignite exec` ([#232](https://github.com/weaveworks/ignite/pull/232), [@BenTheElder](https://github.com/BenTheElder))
+- Add Manifest Directory support (like kubelet's Static Pods) ([#234](https://github.com/weaveworks/ignite/pull/234), [@twelho](https://github.com/twelho))
+- Support directories as well with the `--copy-files` flag ([#271](https://github.com/weaveworks/ignite/pull/271), [@twelho](https://github.com/twelho))
+- Implement read-write GitOps ([#241](https://github.com/weaveworks/ignite/pull/241), [@twelho](https://github.com/twelho))
+
+### API Changes
+
+- Remove `.spec.network.mode`; use a global `--network-plugin` flag instead ([#319](https://github.com/weaveworks/ignite/pull/319), [@luxas](https://github.com/luxas))
+- Rename `.spec.image.ociClaim.ref` to `.spec.image.oci` for simplicity ([#311](https://github.com/weaveworks/ignite/pull/311), [@twelho](https://github.com/twelho))
+- Redesign OCI image status: Display the image's exact repository digest ([#307](https://github.com/weaveworks/ignite/pull/307), [@twelho](https://github.com/twelho))
+- Add `.status.runtime.id` the VM container's ID ([#294](https://github.com/weaveworks/ignite/pull/294), [@twelho](https://github.com/twelho))
+- Support configuring `BindAddress` and `Protocol` for a `PortMapping` ([#299](https://github.com/weaveworks/ignite/pull/299), [@twelho](https://github.com/twelho))
+- Add `vm.status.startTime` to track the VM's uptime externally ([#296](https://github.com/weaveworks/ignite/pull/296), [@twelho](https://github.com/twelho))
+- Replace `vm.status.state` with `vm.status.running` ([#292](https://github.com/weaveworks/ignite/pull/292), [@twelho](https://github.com/twelho))
+- Add the initial v1alpha2 API types ([#250](https://github.com/weaveworks/ignite/pull/250), [@twelho](https://github.com/twelho))
+
+### Enhancements
+
+- Refactor: Use the `netlink` library instead of exec'ing out to `ip` ([#279](https://github.com/weaveworks/ignite/pull/279), [@alexeldeib](https://github.com/alexeldeib))
+- Improve the CNI implementation, and documentation ([#308](https://github.com/weaveworks/ignite/pull/308), [@luxas](https://github.com/luxas))
+- Enable testing in CI, fix the Makefile and tidy ([#280](https://github.com/weaveworks/ignite/pull/280), [@luxas](https://github.com/luxas))
+- Automatically generate the release notes ([#283](https://github.com/weaveworks/ignite/pull/283), [@luxas](https://github.com/luxas))
+- Structured logging across the application; add logging support to `ignite-spawn` ([#247](https://github.com/weaveworks/ignite/pull/247), [@twelho](https://github.com/twelho))
+- Extract watcher, batcher and monitor into pkg/util ([#245](https://github.com/weaveworks/ignite/pull/245), [@luxas](https://github.com/luxas))
+- Robust recursive FileWatcher support using `notify` ([#265](https://github.com/weaveworks/ignite/pull/265), [@twelho](https://github.com/twelho))
+- Document developer meetings ([#272](https://github.com/weaveworks/ignite/pull/272), [@dholbach](https://github.com/dholbach))
+- Create/use a runtime interface instead of direct calls to Docker ([#211](https://github.com/weaveworks/ignite/pull/211), [@twelho](https://github.com/twelho))
+- Add structured validation for the API types ([#216](https://github.com/weaveworks/ignite/pull/216), [@luxas](https://github.com/luxas))
+- Add Strategic Merge Patch support to the storage ([#225](https://github.com/weaveworks/ignite/pull/225), [@luxas](https://github.com/luxas))
+- Improve vulnerability scanning of Docker image ([#239](https://github.com/weaveworks/ignite/pull/239), [@DieterReuter](https://github.com/DieterReuter))
+- CNI networking cleanup support, Docker client robustness improvements ([#111](https://github.com/weaveworks/ignite/pull/111), [@twelho](https://github.com/twelho))
+- Support checksum-based Cache invalidation, improve cache's object handling ([#227](https://github.com/weaveworks/ignite/pull/227), [@twelho](https://github.com/twelho))
+- Rename GitStorage into ManifestStorage ([#226](https://github.com/weaveworks/ignite/pull/226), [@luxas](https://github.com/luxas))
+- Client and Storage rework: Recognize multiple API groups ([#221](https://github.com/weaveworks/ignite/pull/221), [@luxas](https://github.com/luxas))
+- Create internal API types, and use them ([#215](https://github.com/weaveworks/ignite/pull/215), [@luxas](https://github.com/luxas))
+
+### Bug Fixes
+
+- Fix `ignite rm -f` for a running VM without `--debug` ([#320](https://github.com/weaveworks/ignite/pull/320), [@twelho](https://github.com/twelho))
+- Ensure the directory for `godoc2md` ([#231](https://github.com/weaveworks/ignite/pull/231), [@BenTheElder](https://github.com/BenTheElder))
+- Run `gofmt` first after generating code ([#236](https://github.com/weaveworks/ignite/pull/236), [@BenTheElder](https://github.com/BenTheElder))
+- Fix image root permissions ([#249](https://github.com/weaveworks/ignite/pull/249), [@praseodym](https://github.com/praseodym))
+- Separate graph generation from `make tidy`, add make target docs ([#233](https://github.com/weaveworks/ignite/pull/233), [@twelho](https://github.com/twelho))
+
+### Documentation
+
+- Documentation updates for v0.5.0 ([#324](https://github.com/weaveworks/ignite/pull/324), [@twelho](https://github.com/twelho))
+- docs: packet and azure  ([#330](https://github.com/weaveworks/ignite/pull/330), [@alexeldeib](https://github.com/alexeldeib))
+- add simple CODEOWNERS file ([#331](https://github.com/weaveworks/ignite/pull/331), [@dholbach](https://github.com/dholbach))
+- add logo to docs ([#326](https://github.com/weaveworks/ignite/pull/326), [@dholbach](https://github.com/dholbach))
+- Document cloud provider instances with KVM support ([#222](https://github.com/weaveworks/ignite/pull/222), [@paavan98pm](https://github.com/paavan98pm))
+- Add Ignite + Footloose documentation ([#313](https://github.com/weaveworks/ignite/pull/313), [@robertojrojas](https://github.com/robertojrojas))
+- Add a Read The Docs website: `ignite.readthedocs.org` ([#246](https://github.com/weaveworks/ignite/pull/246), [@dholbach](https://github.com/dholbach))
+- Documentation updates and clarifications for the New Storage implementation ([#242](https://github.com/weaveworks/ignite/pull/242), [@twelho](https://github.com/twelho))
+- Index awesome doc ([#276](https://github.com/weaveworks/ignite/pull/276), [@dholbach](https://github.com/dholbach))
+- Update docs links ([#268](https://github.com/weaveworks/ignite/pull/268), [@dholbach](https://github.com/dholbach))
+- Add Google Group to docs for Calendar and permissions ([#248](https://github.com/weaveworks/ignite/pull/248), [@stealthybox](https://github.com/stealthybox))
+- Docs fix: Remove duplicate bracket ([#212](https://github.com/weaveworks/ignite/pull/212), [@silenceshell](https://github.com/silenceshell))
+- Docs fix: Update the command for deleting all VMs ([#201](https://github.com/weaveworks/ignite/pull/201), [@curx](https://github.com/curx))
+- Docs fix: Duplicate bracket ([#218](https://github.com/weaveworks/ignite/pull/218), [@silenceshell](https://github.com/silenceshell))
+- Docs fix: ID is in `.metadata.uid`, not `.metadata.name` ([#219](https://github.com/weaveworks/ignite/pull/219), [@silenceshell](https://github.com/silenceshell))
+- Add an awesome-ignite list for ignite ([#270](https://github.com/weaveworks/ignite/pull/270), [@luxas](https://github.com/luxas))
+- Changed --kernel to --kernel-image for accuracy ([#217](https://github.com/weaveworks/ignite/pull/217), [@paavan98pm](https://github.com/paavan98pm))
+
+## v0.5.0-rc.1
+
+**Released:** 12/08/2019
+
+This is the first release candidate for `v0.5.0`. We hope to release `v0.5.0` very shortly.
+
+### New Features
+
+- Support external volumes (block devices) in Ignite VMs ([#275](https://github.com/weaveworks/ignite/pull/275), [@twelho](https://github.com/twelho))
+
+### API Changes
+
+- Remove `.spec.network.mode`; use a global `--network-plugin` flag instead ([#319](https://github.com/weaveworks/ignite/pull/319), [@luxas](https://github.com/luxas))
+- Rename `.spec.image.ociClaim.ref` to `.spec.image.oci` for simplicity ([#311](https://github.com/weaveworks/ignite/pull/311), [@twelho](https://github.com/twelho))
+- Redesign OCI image status: Display the image's exact repository digest ([#307](https://github.com/weaveworks/ignite/pull/307), [@twelho](https://github.com/twelho))
+- Add `.status.runtime.id` the VM container's ID ([#294](https://github.com/weaveworks/ignite/pull/294), [@twelho](https://github.com/twelho))
+- Support configuring `BindAddress` and `Protocol` for a `PortMapping` ([#299](https://github.com/weaveworks/ignite/pull/299), [@twelho](https://github.com/twelho))
+- Add `vm.status.startTime` to track the VM's uptime externally ([#296](https://github.com/weaveworks/ignite/pull/296), [@twelho](https://github.com/twelho))
+- Replace `vm.status.state` with `vm.status.running` ([#292](https://github.com/weaveworks/ignite/pull/292), [@twelho](https://github.com/twelho))
+
+### Enhancements
+
+- Refactor: Use the `netlink` library instead of exec'ing out to `ip` ([#279](https://github.com/weaveworks/ignite/pull/279), [@alexeldeib](https://github.com/alexeldeib))
+- Improve the CNI implementation, and documentation ([#308](https://github.com/weaveworks/ignite/pull/308), [@luxas](https://github.com/luxas))
+
+### Bug Fixes
+
+- Fix `ignite rm -f` for a running VM without `--debug` ([#320](https://github.com/weaveworks/ignite/pull/320), [@twelho](https://github.com/twelho))
+
+### Documentation
+
+- Add logo to docs ([#326](https://github.com/weaveworks/ignite/pull/326), [@dholbach](https://github.com/dholbach))
+- Document cloud provider instances with KVM support ([#222](https://github.com/weaveworks/ignite/pull/222), [@paavan98pm](https://github.com/paavan98pm))
+- Add Ignite + Footloose documentation ([#313](https://github.com/weaveworks/ignite/pull/313), [@robertojrojas](https://github.com/robertojrojas))
+
+## Trying it out / Next Steps!
+
+In short:
+
+```bash
+export VERSION=v0.5.0-rc.1
+export GOARCH=$(go env GOARCH 2>/dev/null || echo "amd64")
+
+for binary in ignite ignited; do
+    echo "Installing ${binary}..."
+    curl -sfLo ${binary} https://github.com/weaveworks/ignite/releases/download/${VERSION}/${binary}-${GOARCH}
+    chmod +x ${binary}
+    sudo mv ${binary} /usr/local/bin
+done
+```
+
+A more throughout installation guide is available here: https://ignite.readthedocs.io/en/latest/installation.html
+
+
+---
+
+## v0.5.0-alpha.1
+
+**Released:** 06/08/2019
+
+This is the first prerelease in the `v0.5.x` series. Please try it out, and also note we now have arm64 builds!
+
+### New Features
+
+-  Add new binary:  `ignited` ([#264](https://github.com/weaveworks/ignite/pull/264), [@luxas](https://github.com/luxas))
+-  Add ARM64 support ([#173](https://github.com/weaveworks/ignite/pull/173), [@luxas](https://github.com/luxas))
+-  Add new command: `ignite exec` ([#232](https://github.com/weaveworks/ignite/pull/232), [@BenTheElder](https://github.com/BenTheElder))
+-  Add Manifest Directory support (like kubelet's Static Pods) ([#234](https://github.com/weaveworks/ignite/pull/234), [@twelho](https://github.com/twelho))
+-  Support directories as well with the `--copy-files` flag ([#271](https://github.com/weaveworks/ignite/pull/271), [@twelho](https://github.com/twelho))
+-  Implement read-write GitOps ([#241](https://github.com/weaveworks/ignite/pull/241), [@twelho](https://github.com/twelho))
+
+### API Changes
+
+-  Add the initial v1alpha2 API types ([#250](https://github.com/weaveworks/ignite/pull/250), [@twelho](https://github.com/twelho))
+
+### Enhancements
+
+-  Automatically generate the release notes ([#283](https://github.com/weaveworks/ignite/pull/283), [@luxas](https://github.com/luxas))
+-  Structured logging across the application; add logging support to `ignite-spawn` ([#247](https://github.com/weaveworks/ignite/pull/247), [@twelho](https://github.com/twelho))
+-  Extract watcher, batcher and monitor into pkg/util ([#245](https://github.com/weaveworks/ignite/pull/245), [@luxas](https://github.com/luxas))
+-  Robust recursive FileWatcher support using `notify` ([#265](https://github.com/weaveworks/ignite/pull/265), [@twelho](https://github.com/twelho))
+-  Document developer meetings ([#272](https://github.com/weaveworks/ignite/pull/272), [@dholbach](https://github.com/dholbach))
+-  Enable testing in CI, fix the Makefile and tidy ([#280](https://github.com/weaveworks/ignite/pull/280), [@luxas](https://github.com/luxas))
+-  Create/use a runtime interface instead of direct calls to Docker ([#211](https://github.com/weaveworks/ignite/pull/211), [@twelho](https://github.com/twelho))
+-  Add structured validation for the API types ([#216](https://github.com/weaveworks/ignite/pull/216), [@luxas](https://github.com/luxas))
+-  Add Strategic Merge Patch support to the storage ([#225](https://github.com/weaveworks/ignite/pull/225), [@luxas](https://github.com/luxas))
+-  Improve vulnerability scanning of Docker image ([#239](https://github.com/weaveworks/ignite/pull/239), [@DieterReuter](https://github.com/DieterReuter))
+-  CNI networking cleanup support, Docker client robustness improvements ([#111](https://github.com/weaveworks/ignite/pull/111), [@twelho](https://github.com/twelho))
+-  Support checksum-based Cache invalidation, improve cache's object handling ([#227](https://github.com/weaveworks/ignite/pull/227), [@twelho](https://github.com/twelho))
+-  Rename GitStorage into ManifestStorage ([#226](https://github.com/weaveworks/ignite/pull/226), [@luxas](https://github.com/luxas))
+-  Client and Storage rework: Recognize multiple API groups ([#221](https://github.com/weaveworks/ignite/pull/221), [@luxas](https://github.com/luxas))
+-  Create internal API types, and use them ([#215](https://github.com/weaveworks/ignite/pull/215), [@luxas](https://github.com/luxas))
+
+### Bug Fixes
+
+-  Ensure the directory for `godoc2md` ([#231](https://github.com/weaveworks/ignite/pull/231), [@BenTheElder](https://github.com/BenTheElder))
+-  Run `gofmt` first after generating code ([#236](https://github.com/weaveworks/ignite/pull/236), [@BenTheElder](https://github.com/BenTheElder))
+-  Fix image root permissions ([#249](https://github.com/weaveworks/ignite/pull/249), [@praseodym](https://github.com/praseodym))
+-  Separate graph generation from `make tidy`, add make target docs ([#233](https://github.com/weaveworks/ignite/pull/233), [@twelho](https://github.com/twelho))
+
+### Documentation
+
+-  Add a Read The Docs website: `ignite.readthedocs.org` ([#246](https://github.com/weaveworks/ignite/pull/246), [@dholbach](https://github.com/dholbach))
+-  Documentation updates and clarifications for the New Storage implementation ([#242](https://github.com/weaveworks/ignite/pull/242), [@twelho](https://github.com/twelho))
+-  Index awesome doc ([#276](https://github.com/weaveworks/ignite/pull/276), [@dholbach](https://github.com/dholbach))
+-  Update docs links ([#268](https://github.com/weaveworks/ignite/pull/268), [@dholbach](https://github.com/dholbach))
+-  Add Google Group to docs for Calendar and permissions ([#248](https://github.com/weaveworks/ignite/pull/248), [@stealthybox](https://github.com/stealthybox))
+-  Docs fix: Remove duplicate bracket ([#212](https://github.com/weaveworks/ignite/pull/212), [@silenceshell](https://github.com/silenceshell))
+-  Docs fix: Update the command for deleting all VMs ([#201](https://github.com/weaveworks/ignite/pull/201), [@curx](https://github.com/curx))
+-  Docs fix: Duplicate bracket ([#218](https://github.com/weaveworks/ignite/pull/218), [@silenceshell](https://github.com/silenceshell))
+-  Docs fix: ID is in `.metadata.uid`, not `.metadata.name` ([#219](https://github.com/weaveworks/ignite/pull/219), [@silenceshell](https://github.com/silenceshell))
+-  Add an awesome-ignite list for ignite ([#270](https://github.com/weaveworks/ignite/pull/270), [@luxas](https://github.com/luxas))
+-  Changed --kernel to --kernel-image for accuracy ([#217](https://github.com/weaveworks/ignite/pull/217), [@paavan98pm](https://github.com/paavan98pm))
+
+## Trying it out / Next Steps!
+
+In short:
+
+```bash
+export VERSION=v0.5.0-alpha.1
+export GOARCH=$(go env GOARCH 2>/dev/null || echo "amd64")
+
+for binary in ignite ignited; do
+    echo "Installing ${binary}..."
+    curl -sfLo ${binary} https://github.com/weaveworks/ignite/releases/download/${VERSION}/${binary}-${GOARCH}
+    chmod +x ${binary}
+    sudo mv ${binary} /usr/local/bin
+done
+```
+
+A more throughout installation guide is available here: https://ignite.readthedocs.io/en/latest/installation.html
+
+
+---
+
+## v0.4.2
+
+**Released:** 16/07/2019
+
+The second patch release for the `v0.4.x` release stream.
+If you want to have a look, here are changes for versions [v0.4.0](https://github.com/weaveworks/ignite/blob/master/CHANGELOG.md#v040)
+and [v0.4.1](https://github.com/weaveworks/ignite/blob/master/CHANGELOG.md#v041).
+
+In this release, we had 5 PRs from 3 community contributors, thank you for your amazing work :tada:!
+We hope to see this trend continue, all help is very welcome to this community-driven project!
+
+### New Features / UX Improvements
+
+ - Flannel is now usable with the Ignite kernel thanks to adding the VXLAN kernel module ([#154](https://github.com/weaveworks/ignite/pull/154), [@curx](https://github.com/curx))
+ - HAProxy checking for Kubernetes API `/healthz` endpoint ([#156](https://github.com/weaveworks/ignite/pull/156), [@curx](https://github.com/curx))
+ - Allow unmarshaling unquoted UIDs from JSON for convenience ([#178](https://github.com/weaveworks/ignite/pull/178), [@twelho](https://github.com/twelho))
+ - The VM images based on `Ubuntu`, `CentOS` and `Amazon Linux` can now be built on top of a specific release ([#193](https://github.com/weaveworks/ignite/pull/193), [@twelho](https://github.com/twelho))
+
+
+### Bugfixes
+
+ - Import only `/boot` and `/lib` from kernel OCI images, don't overwrite e.g. `/etc/resolv.conf` ([#168](https://github.com/weaveworks/ignite/pull/168), [@twelho](https://github.com/twelho))
+ - The creation timestamp can now be omitted from specification files, it will be added automatically ([#174](https://github.com/weaveworks/ignite/pull/174), [@twelho](https://github.com/twelho))
+ - List all VMs instead of just running ones when calling `ignite vm ls/list` ([#179](https://github.com/weaveworks/ignite/pull/179), [@twelho](https://github.com/twelho))
+ - More robust kernel version checking if e.g. the `strings` binary is not available ([#189](https://github.com/weaveworks/ignite/pull/189), [@twelho](https://github.com/twelho))
+
+
+### Docs improvements
+
+ - Fix formatting in `README.md` ([#166](https://github.com/weaveworks/ignite/pull/166), [@sftim](https://github.com/sftim))
+ - Fix link to `CentOS` image in `README.md` ([#161](https://github.com/weaveworks/ignite/pull/161), [@akshaychhajed](https://github.com/akshaychhajed))
+ - Added `loop` kernel module dependency to `docs/dependencies.md` ([#155](https://github.com/weaveworks/ignite/pull/155), [@curx](https://github.com/curx))
+ - Clarify usage on `Ubuntu` and `CentOS`, embed links to [Joe Beda](https://twitter.com/jbeda)'s TGIK recording ([#175](https://github.com/weaveworks/ignite/pull/175), [@luxas](https://github.com/luxas))
+ - Added a brand new `FAQ`! Check it out at [FAQ.md](FAQ.md)! ([#197](https://github.com/weaveworks/ignite/pull/197), [@luxas](https://github.com/luxas))
+
+
+## Trying it out / Next Steps!
+
+In short:
+
+```bash
+export VERSION=v0.4.2
+curl -fLo ignite https://github.com/weaveworks/ignite/releases/download/${VERSION}/ignite
+chmod +x ignite
+sudo mv ignite /usr/local/bin
+```
+
+A more throughout installation guide is available here: https://github.com/weaveworks/ignite/blob/master/docs/installation.md
+
+---
+
+## v0.4.1
+
+**Released:** 12/07/2019
+
+The first patch release for the `v0.4.x` release stream.
+If you want to go and look at the new and changed stuff in v0.4.0, see [here](https://github.com/weaveworks/ignite/blob/master/CHANGELOG.md#v040).
+
+This release we had an **amazing** amount of 9 PRs from 6 community contributors, in _48 hours after launch_ :tada:!
+We hope to see this trend continue, all help is very welcome to this community-driven project!
+
+### New Features / UX Improvements
+
+ - It is now possible to access and talk to the Firecracker socket, and metrics/logs FIFOs. ([#132](https://github.com/weaveworks/ignite/pull/132), [@patrobinson](https://github.com/patrobinson))
+ - Verify that the VM _actually_ did start before `ignite start/run` reports success ([#139](https://github.com/weaveworks/ignite/pull/139), [@twelho](https://github.com/twelho))
+ - Provide better UX and error messages for the `ignite ssh` command ([#149](https://github.com/weaveworks/ignite/pull/149), [@twelho](https://github.com/twelho))
+
+
+### Bugfixes
+
+ - Set the `-F` flag to `mkfs.ext4`, as it is required on RHEL platforms. ([#131](https://github.com/weaveworks/ignite/pull/131), [@junaid18183](https://github.com/junaid18183))
+ - Generate RSA keys instead of ED25519 on FIPS machines. ([#136](https://github.com/weaveworks/ignite/pull/136), [@junaid18183](https://github.com/junaid18183))
+ - Make the filtering framework respect exact matches ([#138](https://github.com/weaveworks/ignite/pull/138), [@twelho](https://github.com/twelho))
+ - Don't fail although there are inactive network interfaces in the container ([#146](https://github.com/weaveworks/ignite/pull/146), [@luxas](https://github.com/luxas))
+
+
+### Docs improvements
+
+ - Add a next action link for better developer-workflow in `installation.md` ([#118](https://github.com/weaveworks/ignite/pull/118), [@alexellis](https://github.com/alexellis))
+ - Error out if the Ignite binary download fails ([#120](https://github.com/weaveworks/ignite/pull/120), [@alexellis](https://github.com/alexellis))
+ - Improve wording in the `README.md` ([#125](https://github.com/weaveworks/ignite/pull/125), [@seeekr](https://github.com/seeekr))
+ - Fix link to the `prometheus.md` doc ([#126](https://github.com/weaveworks/ignite/pull/126), [@webwurst](https://github.com/webwurst))
+ - Fix typo in `docs/README.md` ([#128](https://github.com/weaveworks/ignite/pull/128), [@andrelop](https://github.com/andrelop))
+ - Added demo video to docs/usage.md ([#140](https://github.com/weaveworks/ignite/pull/140), [@paavan98pm](https://github.com/paavan98pm))
+ - Add docs on how to check for KVM support in the CPU/kernel ([#145](https://github.com/weaveworks/ignite/pull/145), [@luxas](https://github.com/luxas))
+
+
+## Trying it out / Next Steps!
+
+In short:
+
+```bash
+export VERSION=v0.4.1
+curl -fLo ignite https://github.com/weaveworks/ignite/releases/download/${VERSION}/ignite
+chmod +x ignite
+sudo mv ignite /usr/local/bin
+```
+
+A more throughout installation guide is available here: https://github.com/weaveworks/ignite/blob/master/docs/installation.md
+
+
+---
+
 ## v0.4.0
 
-The first release candidate for Ignite's biggest release yet!
+**Released:** 10/07/2019
+
+## v0.4.0
+
+Ignite's biggest release yet!
 
 There are many significant changes compared to before:
 
@@ -77,16 +406,68 @@ In short:
 
 ```bash
 export VERSION=v0.4.0
-curl -Lo ignite https://github.com/weaveworks/ignite/releases/download/${VERSION}/ignite
+curl -fLo ignite https://github.com/weaveworks/ignite/releases/download/${VERSION}/ignite
 chmod +x ignite
 sudo mv ignite /usr/local/bin
 ```
 
 A longer installation guide is available here: https://github.com/weaveworks/ignite/blob/master/docs/installation.md
 
+
+---
+
+## v0.4.0-rc.1
+
+**Released:** 09/07/2019
+
+## v0.4.0-rc.1
+
+The first release candidate for Ignite's biggest release yet!
+
+There are many significant changes compared to before:
+
+### New Features
+
+ - Make base and kernel OCI images composable for a VM. You can now choose what kernel to combine with what base image freely https://github.com/weaveworks/ignite/pull/105
+ - Add the GitOps mode for Ignite using `ignite gitops` https://github.com/weaveworks/ignite/pull/100
+ - Make it possible to run `ignite create` and `ignite run` declaratively https://github.com/weaveworks/ignite/commit/57333646b52a0e1e3a725340e994b2749b39e5bd
+ - Added Prometheus metrics for `ignite-spawn` https://github.com/weaveworks/ignite/commit/94abc529972873db3fa3ee954099a4f62d67b6f3
+ - Implemented CNI support https://github.com/weaveworks/ignite/commit/a8897532f9f6a8f5c40025f0f93ab2d24f2c7cd3
+
+### API Machinery
+
+ - Added the `ignite.weave.works/v1alpha1` API group with the Ignite API types https://github.com/weaveworks/ignite/commit/ca1edc8e7a61b950811c6145ba2ad53f8cdc2a04
+ - Add a meta API package containing supporting but generic API types for Ignite https://github.com/weaveworks/ignite/commit/09d51abd409ee361e93884baae24ffc92cde63a9
+ - Create composable interfaces for the internal API machinery: `Client` -> `Cache` -> `Storage` -> `RawStorage` -> `Serializer` https://github.com/weaveworks/ignite/pull/93 https://github.com/weaveworks/ignite/pull/96 https://github.com/weaveworks/ignite/pull/99
+
+### New Commands
+
+ - Add the `ignite inspect` command https://github.com/weaveworks/ignite/pull/107
+ - Add the `ignite gitops` command https://github.com/weaveworks/ignite/pull/100
+
+### Documentation
+
+ - Add user-facing documentation and guides https://github.com/weaveworks/ignite/pull/113
+ - Generate OpenAPI specifications https://github.com/weaveworks/ignite/commit/f1c5bfd473799f712c4c1d8fb276426780c1bf01
+ - Add API type documentation https://github.com/weaveworks/ignite/commit/218c94723f836b8e2cb82886b8664544933ea605
+ - Added architecture diagram https://github.com/weaveworks/ignite/commit/da53f9fc2f5790edacb5d1b541dd4da8a6089673
+ - Added graph of module dependencies https://github.com/weaveworks/ignite/commit/be7cc088c671c5728155fb146367a67d4ada4ea6
+
+### Internal Improvements
+
+ - Add structured logging https://github.com/weaveworks/ignite/pull/110
+ - Factor out `ignite-spawn` into its own binary running in the container https://github.com/weaveworks/ignite/commit/0a1965e7203877c591dc79504ce257a57fd00480
+ - Upgraded the Firecracker version to v0.17.0 https://github.com/weaveworks/ignite/commit/41e3595b9e8d35c24e8cd97037cc1c7045779ee9
+ - Set Go version to 1.12.6 https://github.com/weaveworks/ignite/commit/d00cce7d2b09e97f8d515c4a6161b11fc6c61a2c
+
+
+---
+
 ## v0.3.0
 
-Major release with significant UX and internal improvements:
+**Released:** 18/06/2019
+
+## Major release with significant UX and internal improvements:
 
  - There is no longer a difference between an Ignite image and an OCI image, this is now the same thing.
      - Ignite operates on OCI images directly, for both OS images and kernels. The kernel is expected to be coupled with the image given to `ignite run`, in `/boot/vmlinux`.
@@ -94,16 +475,21 @@ Major release with significant UX and internal improvements:
  - Now `ignite images` shows OCI images that are cached and ready to use, and `ignite kernels` the kernels already imported from base images.
  - Added an example usage guide for running a Kubernetes cluster in HA mode using kubeadm and Ignite.
  - Removed `ignite build`, and `ignite image/kernel import`; as these are no longer needed
- - Importing an image from a tROADMAPar file is no longer possible, package the contents in an OCI image instead
+ - Importing an image from a tar file is no longer possible, package the contents in an OCI image instead
  - Added a new command `ignite ssh [vm]` and flag: `ignite run --ssh`. This allows for automatic SSH logins.
  - Now Ignite logs user-friendly messages by default. To get machine-readable output, use the `--quiet` flag.
  - Ignite now requires the user to be `root`. This will be revisited later, when the architecture has changed.
  - The command outputs and structure is now more user-friendly.
  - Fixed several bugs both under the hood, and user-affecting ones
 
+
+---
+
 ## v0.2.0
 
-Major release with significant improvements
+**Released:** 06/06/2019
+
+## Major release with significant improvements
 
  - Ignite is now using `devicemapper` under the hood, for overlay snapshots for filesystem writes, allowing for image reuse, efficient use of space and way faster builds!
  - Added sample Ubuntu 18.04 and CentOS 7 OS images & a 4.19 kernel build
@@ -116,10 +502,37 @@ Major release with significant improvements
  - Removed the need for the Ignite container to run with `--privileged`
  - Allow for force-deletions of images, kernels and vms.
  - Added documentation.
- - Moved repo from `luxas/ignite` to `weaveworks/ignite`
+ - Moved repo from luxas/ignite to weaveworks/ignite
+
+### Use it
+
+Download the attached binary, add it to `$PATH`, and execute the following commands:
+
+```bash
+$ ignite build weaveworks/ignite-ubuntu:v0.2.0 \
+    --name ubuntu-image \
+    --import-kernel ubuntu-kernel
+$ ignite images
+$ ignite kernels
+$ ignite run ubuntu-image ubuntu-kernel --name my-vm
+$ ignite ps
+$ ignite logs my-vm
+$ ignite attach my-vm
+
+# Cleanup
+$ ignite stop my-vm
+$ ignite rm my-vm
+$ ignite rmi ubuntu-image
+$ ignite rmk ubuntu-kernel
+```
+
+Also make note of the [known limitations](https://github.com/weaveworks/ignite#known-limitations)
+
+---
 
 ## v0.1.0
 
+**Released:** 31/05/2019
+
 This is the first, proof-of-concept version of Ignite.
 It has all the essential features, and a pretty complete implementation of the docker UX.
-

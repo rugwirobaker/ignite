@@ -2,103 +2,188 @@ package operations
 
 import (
 	"fmt"
-	"log"
+	"io"
+	"io/ioutil"
+	"path"
 	"path/filepath"
-	"strings"
+	"time"
 
-	api "github.com/weaveworks/ignite/pkg/apis/ignite/v1alpha1"
+	log "github.com/sirupsen/logrus"
+	api "github.com/weaveworks/ignite/pkg/apis/ignite"
+	meta "github.com/weaveworks/ignite/pkg/apis/meta/v1alpha1"
 	"github.com/weaveworks/ignite/pkg/constants"
-	"github.com/weaveworks/ignite/pkg/metadata/vmmd"
-	"github.com/weaveworks/ignite/pkg/network/cni"
-	"github.com/weaveworks/ignite/pkg/runtime/docker"
+	"github.com/weaveworks/ignite/pkg/dmlegacy"
+	"github.com/weaveworks/ignite/pkg/logs"
+	"github.com/weaveworks/ignite/pkg/operations/lookup"
+	"github.com/weaveworks/ignite/pkg/providers"
+	"github.com/weaveworks/ignite/pkg/runtime"
 	"github.com/weaveworks/ignite/pkg/util"
 	"github.com/weaveworks/ignite/pkg/version"
 )
 
-func StartVM(vm *vmmd.VM, debug bool) error {
-	// Make sure the VM container does not exist. Don't care about the error
-	RemoveVMContainer(vm.VM)
+func StartVM(vm *api.VM, debug bool) error {
+	// Inspect the VM container and remove it if it exists
+	inspectResult, _ := providers.Runtime.InspectContainer(util.NewPrefixer().Prefix(vm.GetUID()))
+	if err := RemoveVMContainer(inspectResult); err != nil {
+		return err
+	}
 
 	// Setup the snapshot overlay filesystem
-	if err := vm.SetupSnapshot(); err != nil {
+	if err := dmlegacy.ActivateSnapshot(vm); err != nil {
+		return err
+	}
+
+	kernelUID, err := lookup.KernelUIDForVM(vm, providers.Client)
+	if err != nil {
 		return err
 	}
 
 	vmDir := filepath.Join(constants.VM_DIR, vm.GetUID().String())
-	kernelDir := filepath.Join(constants.KERNEL_DIR, vm.GetKernelUID().String())
+	kernelDir := filepath.Join(constants.KERNEL_DIR, kernelUID.String())
+	igniteImage := fmt.Sprintf("weaveworks/ignite:%s", version.GetIgnite().ImageTag())
 
-	dockerArgs := []string{
-		"-itd",
-		fmt.Sprintf("--label=ignite.name=%s", vm.GetName()),
-		fmt.Sprintf("--name=%s", constants.IGNITE_PREFIX+vm.GetUID()),
-		fmt.Sprintf("--volume=%s:%s", vmDir, vmDir),
-		fmt.Sprintf("--volume=%s:%s", kernelDir, kernelDir),
-		fmt.Sprintf("--stop-timeout=%d", constants.STOP_TIMEOUT+constants.IGNITE_TIMEOUT),
-		"--cap-add=SYS_ADMIN",          // Needed to run "dmsetup remove" inside the container
-		"--cap-add=NET_ADMIN",          // Needed for removing the IP from the container's interface
-		"--device=/dev/mapper/control", // This enables containerized Ignite to remove its own dm snapshot
-		"--device=/dev/net/tun",        // Needed for creating TAP adapters
-		"--device=/dev/kvm",            // Pass though virtualization support
-		fmt.Sprintf("--device=%s", vm.SnapshotDev()),
+	// Verify that the image containing ignite-spawn is pulled
+	// TODO: Integrate automatic pulling into pkg/runtime
+	if err := verifyPulled(igniteImage); err != nil {
+		return err
 	}
 
-	if vm.Spec.Network.Mode == api.NetworkModeCNI {
-		dockerArgs = append(dockerArgs, "--net=none")
+	config := &runtime.ContainerConfig{
+		Cmd:    []string{fmt.Sprintf("--log-level=%s", logs.Logger.Level.String()), vm.GetUID().String()},
+		Labels: map[string]string{"ignite.name": vm.GetName()},
+		Binds: []*runtime.Bind{
+			{
+				HostPath:      vmDir,
+				ContainerPath: vmDir,
+			},
+			{
+				// Mount the metadata.json file specifically into the container, to a well-known place for ignite-spawn to access
+				HostPath:      path.Join(vmDir, constants.METADATA),
+				ContainerPath: constants.IGNITE_SPAWN_VM_FILE_PATH,
+			},
+			{
+				// Mount the vmlinux file specifically into the container, to a well-known place for ignite-spawn to access
+				HostPath:      path.Join(kernelDir, constants.KERNEL_FILE),
+				ContainerPath: constants.IGNITE_SPAWN_VMLINUX_FILE_PATH,
+			},
+		},
+		CapAdds: []string{
+			"SYS_ADMIN", // Needed to run "dmsetup remove" inside the container
+			"NET_ADMIN", // Needed for removing the IP from the container's interface
+		},
+		Devices: []*runtime.Bind{
+			runtime.BindBoth("/dev/mapper/control"), // This enables containerized Ignite to remove its own dm snapshot
+			runtime.BindBoth("/dev/net/tun"),        // Needed for creating TAP adapters
+			runtime.BindBoth("/dev/kvm"),            // Pass through virtualization support
+			runtime.BindBoth(vm.SnapshotDev()),      // The block device to boot from
+		},
+		StopTimeout:  constants.STOP_TIMEOUT + constants.IGNITE_TIMEOUT,
+		PortBindings: vm.Spec.Network.Ports, // Add the port mappings to Docker
 	}
 
-	dockerCmd := append(make([]string, 0, len(dockerArgs)+2), "run")
+	// Add the volumes to the container devices
+	for _, volume := range vm.Spec.Storage.Volumes {
+		if volume.BlockDevice == nil {
+			continue // Skip all non block device volumes for now
+		}
+
+		config.Devices = append(config.Devices, &runtime.Bind{
+			HostPath:      volume.BlockDevice.Path,
+			ContainerPath: path.Join(constants.IGNITE_SPAWN_VOLUME_DIR, volume.Name),
+		})
+	}
+
+	// Prepare the networking for the container, for the given network plugin
+	if err := providers.NetworkPlugin.PrepareContainerSpec(config); err != nil {
+		return err
+	}
 
 	// If we're not debugging, remove the container post-run
 	if !debug {
-		dockerCmd = append(dockerCmd, "--rm")
+		config.AutoRemove = true
 	}
 
-	// Add the port mappings to Docker
-	for _, portMapping := range vm.Spec.Network.Ports {
-		dockerArgs = append(dockerArgs, fmt.Sprintf("-p=%d:%d", portMapping.HostPort, portMapping.VMPort))
-	}
-
-	dockerArgs = append(dockerArgs, fmt.Sprintf("weaveworks/ignite:%s", version.GetIgnite().ImageTag()))
-	dockerArgs = append(dockerArgs, vm.GetUID().String())
-
-	// Create the VM container in docker
-	output, err := util.ExecuteCommand("docker", append(dockerCmd, dockerArgs...)...)
+	// Run the VM container in Docker
+	containerID, err := providers.Runtime.RunContainer(igniteImage, config, util.NewPrefixer().Prefix(vm.GetUID()))
 	if err != nil {
 		return fmt.Errorf("failed to start container for VM %q: %v", vm.GetUID(), err)
 	}
 
-	// TODO: Workaround that the image might not be pulled. Do not leak docker pull logs into the containerID
-	// TODO: Fix this by pre-pulling the image using pkg/runtime.
-	outputLines := strings.Split(output, `\n`)
-	containerID := outputLines[len(outputLines)-1]
-
-	if vm.Spec.Network.Mode == api.NetworkModeCNI {
-		if err := setupCNINetworking(containerID); err != nil {
-			return err
-		}
-		log.Printf("Networking is now handled by CNI")
+	// Set up the networking
+	result, err := providers.NetworkPlugin.SetupContainerNetwork(containerID)
+	if err != nil {
+		return err
 	}
 
-	log.Printf("Started Firecracker VM %q in a container with ID %q", vm.GetUID(), containerID)
+	log.Infof("Networking is handled by %q", providers.NetworkPlugin.Name())
+	log.Infof("Started Firecracker VM %q in a container with ID %q", vm.GetUID(), containerID)
+
 	// TODO: Follow-up the container here with a defer, or dedicated goroutine. We should output
 	// if it started successfully or not
+	// TODO: This is temporary until we have proper communication to the container
+	if err := waitForSpawn(vm); err != nil {
+		return err
+	}
+
+	// Set the container ID for the VM
+	vm.Status.Runtime = &api.Runtime{ID: containerID}
+
+	// Set the start time for the VM
+	startTime := meta.Timestamp()
+	vm.Status.StartTime = &startTime
+
+	// Append the runtime IP address of the VM to its state
+	for _, addr := range result.Addresses {
+		vm.Status.IPAddresses = append(vm.Status.IPAddresses, addr.IP)
+	}
+
+	// Set the VM's status to running
+	vm.Status.Running = true
+
+	// Write the state changes
+	return providers.Client.VMs().Set(vm)
+}
+
+func verifyPulled(image string) error {
+	if _, err := providers.Runtime.InspectImage(image); err != nil {
+		log.Infof("Pulling image %q...", image)
+		rc, err := providers.Runtime.PullImage(image)
+		if err != nil {
+			return err
+		}
+
+		// Don't output the pull command
+		if _, err = io.Copy(ioutil.Discard, rc); err != nil {
+			return err
+		}
+
+		if err = rc.Close(); err != nil {
+			return err
+		}
+
+		// Verify the image was pulled
+		if _, err = providers.Runtime.InspectImage(image); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
-func setupCNINetworking(containerID string) error {
-	// TODO: Both the client and networkPlugin variables should be constructed once,
-	// and accessible throughout the program.
-	// TODO: Right now IP addresses aren't reclaimed when the VM is removed.
-	// networkPlugin.RemoveContainerNetwork need to be called when removing the VM.
-	client, err := docker.GetDockerClient()
-	if err != nil {
-		return err
+// TODO: This check for the Prometheus socket file is temporary
+// until we get a proper ignite <-> ignite-spawn communication channel
+func waitForSpawn(vm *api.VM) error {
+	const timeout = 10 * time.Second
+	const checkInterval = 100 * time.Millisecond
+
+	startTime := time.Now()
+	for time.Now().Sub(startTime) < timeout {
+		time.Sleep(checkInterval)
+
+		if util.FileExists(path.Join(vm.ObjectPath(), constants.PROMETHEUS_SOCKET)) {
+			return nil
+		}
 	}
 
-	networkPlugin, err := cni.GetCNINetworkPlugin(client)
-	if err != nil {
-		return err
-	}
-
-	return networkPlugin.SetupContainerNetwork(containerID)
+	return fmt.Errorf("timeout waiting for ignite-spawn startup")
 }

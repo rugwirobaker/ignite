@@ -4,15 +4,15 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os/exec"
 
-	api "github.com/weaveworks/ignite/pkg/apis/ignite/v1alpha1"
+	log "github.com/sirupsen/logrus"
+	api "github.com/weaveworks/ignite/pkg/apis/ignite"
 	meta "github.com/weaveworks/ignite/pkg/apis/meta/v1alpha1"
-	"github.com/weaveworks/ignite/pkg/runtime/docker"
-	"github.com/weaveworks/ignite/pkg/util"
+	"github.com/weaveworks/ignite/pkg/providers"
 )
 
+// TODO: Make this a generic "OCISource" as it now only depends on the generic providers.Runtime
 type DockerSource struct {
 	imageID     string
 	containerID string
@@ -31,16 +31,11 @@ func (ds *DockerSource) ID() string {
 }
 
 func (ds *DockerSource) Parse(ociRef meta.OCIImageRef) (*api.OCIImageSource, error) {
-	client, err := docker.GetDockerClient()
-	if err != nil {
-		return nil, err
-	}
-
 	source := ociRef.String()
-	res, err := client.InspectImage(source)
+	res, err := providers.Runtime.InspectImage(source)
 	if err != nil {
-		log.Printf("Docker image %q not found locally, pulling...", source)
-		rc, err := client.PullImage(source)
+		log.Infof("Docker image %q not found locally, pulling...", source)
+		rc, err := providers.Runtime.PullImage(source)
 		if err != nil {
 			return nil, err
 		}
@@ -48,7 +43,7 @@ func (ds *DockerSource) Parse(ociRef meta.OCIImageRef) (*api.OCIImageSource, err
 		// Don't output the pull command
 		io.Copy(ioutil.Discard, rc)
 		rc.Close()
-		res, err = client.InspectImage(source)
+		res, err = providers.Runtime.InspectImage(source)
 		if err != nil {
 			return nil, err
 		}
@@ -59,41 +54,40 @@ func (ds *DockerSource) Parse(ociRef meta.OCIImageRef) (*api.OCIImageSource, err
 	}
 
 	ds.imageID = res.ID
-	return &api.OCIImageSource{
-		ID:          res.ID,
-		RepoDigests: res.RepoDigests,
-		Size:        meta.NewSizeFromBytes(uint64(res.Size)),
-	}, nil
-}
 
-func (ds *DockerSource) Reader() (io.ReadCloser, error) {
-	// Create a container from the image to be exported
-	var err error
-	if ds.containerID, err = util.ExecuteCommand("docker", "create", ds.imageID, "sh"); err != nil {
-		return nil, fmt.Errorf("failed to create Docker container from image %q: %v", ds.imageID, err)
+	// By default parse the OCI content ID from the Docker image ID
+	contentRef := res.ID
+	if len(res.RepoDigests) > 0 {
+		// If the image has Repo digests, use the first one of them to parse
+		// the fully qualified OCI image name and digest. All of the digests
+		// point to the same contents, so it doesn't matter which one we use
+		// here. It will be translated to the right content by the runtime.
+		contentRef = res.RepoDigests[0]
 	}
 
-	// Open a tar file stream to be extracted straight into the image volume
-	ds.exportCmd = exec.Command("docker", "export", ds.containerID)
-	reader, err := ds.exportCmd.StdoutPipe()
+	// Parse the OCI content ID based on the available reference
+	ci, err := meta.ParseOCIContentID(contentRef)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := ds.exportCmd.Start(); err != nil {
-		return nil, err
-	}
-
-	return reader, nil
+	return &api.OCIImageSource{
+		ID:   ci,
+		Size: meta.NewSizeFromBytes(uint64(res.Size)),
+	}, nil
 }
 
-func (ds *DockerSource) Cleanup() error {
+func (ds *DockerSource) Reader() (rc io.ReadCloser, err error) {
+	// Export the image
+	rc, ds.containerID, err = providers.Runtime.ExportImage(ds.imageID)
+	return
+}
+
+func (ds *DockerSource) Cleanup() (err error) {
 	if len(ds.containerID) > 0 {
 		// Remove the temporary container
-		if _, err := util.ExecuteCommand("docker", "rm", ds.containerID); err != nil {
-			return fmt.Errorf("failed to remove container %q: %v", ds.containerID, err)
-		}
+		err = providers.Runtime.RemoveContainer(ds.containerID)
 	}
 
-	return nil
+	return
 }

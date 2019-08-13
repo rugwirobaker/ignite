@@ -2,7 +2,6 @@ package cni
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -10,7 +9,9 @@ import (
 
 	"github.com/containernetworking/cni/libcni"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
+	cnicurrentapi "github.com/containernetworking/cni/pkg/types/current"
 	log "github.com/sirupsen/logrus"
+	"github.com/weaveworks/ignite/pkg/network"
 	"github.com/weaveworks/ignite/pkg/runtime"
 )
 
@@ -34,7 +35,7 @@ type cniNetwork struct {
 	CNIConfig     libcni.CNI
 }
 
-func GetCNINetworkPlugin(runtime runtime.Interface) (NetworkPlugin, error) {
+func GetCNINetworkPlugin(runtime runtime.Interface) (network.Plugin, error) {
 	binDirs := []string{CNIBinDir}
 	plugin := &cniNetworkPlugin{
 		runtime:        runtime,
@@ -42,10 +43,6 @@ func GetCNINetworkPlugin(runtime runtime.Interface) (NetworkPlugin, error) {
 		loNetwork:      getLoNetwork(binDirs),
 		confDir:        CNIConfDir,
 		binDirs:        binDirs,
-	}
-
-	if err := plugin.syncNetworkConfig(); err != nil {
-		return nil, err
 	}
 
 	return plugin, nil
@@ -72,7 +69,7 @@ func getDefaultCNINetwork(confDir string, binDirs []string) (*cniNetwork, error)
 	case err != nil:
 		return nil, err
 	case len(files) == 0:
-		return nil, fmt.Errorf("No networks found in %s", confDir)
+		return nil, fmt.Errorf("no networks found in %s", confDir)
 	}
 
 	sort.Strings(files)
@@ -121,7 +118,7 @@ func getDefaultCNINetwork(confDir string, binDirs []string) (*cniNetwork, error)
 		return network, nil
 	}
 
-	return nil, fmt.Errorf("No valid networks found in %s", confDir)
+	return nil, fmt.Errorf("no valid networks found in %s", confDir)
 }
 
 func (plugin *cniNetworkPlugin) syncNetworkConfig() error {
@@ -148,14 +145,17 @@ func (plugin *cniNetworkPlugin) setDefaultNetwork(n *cniNetwork) {
 
 func (plugin *cniNetworkPlugin) checkInitialized() error {
 	if plugin.getDefaultNetwork() == nil {
-		return errors.New("cni config uninitialized")
+		// Sync the network configuration if the plugin is not initialized
+		if err := plugin.syncNetworkConfig(); err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
-func (plugin *cniNetworkPlugin) Name() string {
-	return CNIPluginName
+func (plugin *cniNetworkPlugin) Name() network.PluginName {
+	return network.PluginCNI
 }
 
 func (plugin *cniNetworkPlugin) Status() error {
@@ -163,22 +163,46 @@ func (plugin *cniNetworkPlugin) Status() error {
 	return plugin.checkInitialized()
 }
 
-func (plugin *cniNetworkPlugin) SetupContainerNetwork(containerid string) error {
+func (plugin *cniNetworkPlugin) PrepareContainerSpec(container *runtime.ContainerConfig) error {
+	// No need for the container runtime to set up networking, as this plugin will do it
+	container.NetworkMode = "none"
+	return nil
+}
+
+func (plugin *cniNetworkPlugin) SetupContainerNetwork(containerid string) (*network.Result, error) {
 	if err := plugin.checkInitialized(); err != nil {
-		return err
+		return nil, err
 	}
 
-	netnsPath, err := plugin.runtime.GetNetNS(containerid)
+	netnsPath, err := plugin.runtime.ContainerNetNS(containerid)
 	if err != nil {
-		return fmt.Errorf("CNI failed to retrieve network namespace path: %v", err)
+		return nil, fmt.Errorf("CNI failed to retrieve network namespace path: %v", err)
 	}
 
 	if _, err = plugin.addToNetwork(plugin.loNetwork, containerid, netnsPath); err != nil {
-		return err
+		return nil, err
 	}
 
-	_, err = plugin.addToNetwork(plugin.getDefaultNetwork(), containerid, netnsPath)
-	return err
+	genericResult, err := plugin.addToNetwork(plugin.getDefaultNetwork(), containerid, netnsPath)
+	if err != nil {
+		return nil, err
+	}
+	result, err := cnicurrentapi.NewResultFromResult(genericResult)
+	if err != nil {
+		return nil, err
+	}
+	return cniToIgniteResult(result), nil
+}
+
+func cniToIgniteResult(r *cnicurrentapi.Result) *network.Result {
+	result := &network.Result{}
+	for _, ip := range r.IPs {
+		result.Addresses = append(result.Addresses, network.Address{
+			IPNet:   ip.Address,
+			Gateway: ip.Gateway,
+		})
+	}
+	return result
 }
 
 func (plugin *cniNetworkPlugin) RemoveContainerNetwork(containerid string) error {
@@ -187,7 +211,7 @@ func (plugin *cniNetworkPlugin) RemoveContainerNetwork(containerid string) error
 	}
 
 	// Lack of namespace should not be fatal on teardown
-	netnsPath, err := plugin.runtime.GetNetNS(containerid)
+	netnsPath, err := plugin.runtime.ContainerNetNS(containerid)
 	if err != nil {
 		log.Infof("CNI failed to retrieve network namespace path: %v", err)
 	}

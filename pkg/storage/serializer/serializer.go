@@ -19,14 +19,17 @@ type Serializer interface {
 	DecodeFileInto(filePath string, obj runtime.Object) error
 
 	// Decode takes byte content and returns the target object
-	Decode(content []byte) (runtime.Object, error)
+	Decode(content []byte, internal bool) (runtime.Object, error)
 	// DecodeFile takes a file path and returns the target object
-	DecodeFile(filePath string) (runtime.Object, error)
+	DecodeFile(filePath string, internal bool) (runtime.Object, error)
 
 	// EncodeYAML encodes the specified object for a specific version to YAML bytes
 	EncodeYAML(obj runtime.Object) ([]byte, error)
 	// EncodeJSON encodes the specified object for a specific version to pretty JSON bytes
 	EncodeJSON(obj runtime.Object) ([]byte, error)
+
+	// DefaultInternal populates the given internal object with the preferred external version's defaults
+	DefaultInternal(cfg runtime.Object) error
 
 	// Scheme provides access to the underlying runtime.Scheme
 	Scheme() *runtime.Scheme
@@ -43,13 +46,17 @@ func NewSerializer(scheme *runtime.Scheme, codecs *k8sserializer.CodecFactory) S
 		*codecs = k8sserializer.NewCodecFactory(scheme)
 	}
 
+	// Allow both YAML and JSON inputs (JSON is a subset of YAML), and deserialize in strict mode
+	strictSerializer := json.NewSerializerWithOptions(json.DefaultMetaFactory, scheme, scheme, json.SerializerOptions{
+		Yaml:   true,
+		Strict: true,
+	})
+
 	return &serializer{
 		scheme: scheme,
 		codecs: codecs,
-		decoder: json.NewSerializerWithOptions(json.DefaultMetaFactory, scheme, scheme, json.SerializerOptions{
-			Yaml:   true,
-			Strict: true,
-		}),
+		// Construct a codec that uses the strict serializer, but also performs defaulting & conversion
+		decoder: codecs.CodecForVersions(nil, strictSerializer, nil, runtime.InternalGroupVersioner),
 	}
 }
 
@@ -81,18 +88,30 @@ func (s *serializer) DecodeInto(content []byte, obj runtime.Object) error {
 }
 
 // DecodeFile takes a file path and returns the target object
-func (s *serializer) DecodeFile(filePath string) (runtime.Object, error) {
+func (s *serializer) DecodeFile(filePath string, internal bool) (runtime.Object, error) {
 	content, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		return nil, err
 	}
 
-	return s.Decode(content)
+	return s.Decode(content, internal)
 }
 
 // Decode takes byte content and returns the target object
-func (s *serializer) Decode(content []byte) (runtime.Object, error) {
-	return runtime.Decode(s.decoder, content)
+func (s *serializer) Decode(content []byte, internal bool) (runtime.Object, error) {
+	obj, err := runtime.Decode(s.decoder, content)
+	if err != nil {
+		return nil, err
+	}
+	// Default the object
+	s.scheme.Default(obj)
+
+	// If we did not request an internal conversion, return quickly
+	if !internal {
+		return obj, nil
+	}
+	// Return the internal version of the object
+	return s.scheme.ConvertToVersion(obj, runtime.InternalGroupVersioner)
 }
 
 // EncodeYAML encodes the specified object for a specific version to YAML bytes
@@ -125,9 +144,26 @@ func (s *serializer) encode(obj runtime.Object, mediaType string, pretty bool) (
 	return runtime.Encode(encoder, obj)
 }
 
+// DefaultInternal populates the given internal object with the preferred external version's defaults
+func (s *serializer) DefaultInternal(cfg runtime.Object) error {
+	gvk, err := s.externalGVKForObject(cfg)
+	if err != nil {
+		return err
+	}
+	external, err := s.scheme.New(*gvk)
+	if err != nil {
+		return nil
+	}
+	if err := s.scheme.Convert(cfg, external, nil); err != nil {
+		return err
+	}
+	s.scheme.Default(external)
+	return s.scheme.Convert(external, cfg, nil)
+}
+
 func (s *serializer) externalGVKForObject(cfg runtime.Object) (*schema.GroupVersionKind, error) {
 	gvks, unversioned, err := s.scheme.ObjectKinds(cfg)
-	if unversioned || err != nil || len(gvks) == 0 {
+	if unversioned || err != nil || len(gvks) != 1 {
 		return nil, fmt.Errorf("unversioned %t or err %v or invalid gvks %v", unversioned, err, gvks)
 	}
 
