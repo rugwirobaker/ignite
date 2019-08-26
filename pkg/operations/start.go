@@ -2,13 +2,12 @@ package operations
 
 import (
 	"fmt"
-	"io"
-	"io/ioutil"
 	"path"
 	"path/filepath"
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	apiruntime "github.com/weaveworks/gitops-toolkit/pkg/runtime"
 	api "github.com/weaveworks/ignite/pkg/apis/ignite"
 	meta "github.com/weaveworks/ignite/pkg/apis/meta/v1alpha1"
 	"github.com/weaveworks/ignite/pkg/constants"
@@ -40,7 +39,8 @@ func StartVM(vm *api.VM, debug bool) error {
 
 	vmDir := filepath.Join(constants.VM_DIR, vm.GetUID().String())
 	kernelDir := filepath.Join(constants.KERNEL_DIR, kernelUID.String())
-	igniteImage := fmt.Sprintf("weaveworks/ignite:%s", version.GetIgnite().ImageTag())
+	// Were parsing already validated data, ignore the error
+	igniteImage, _ := meta.NewOCIImageRef(fmt.Sprintf("weaveworks/ignite:%s", version.GetIgnite().ImageTag()))
 
 	// Verify that the image containing ignite-spawn is pulled
 	// TODO: Integrate automatic pulling into pkg/runtime
@@ -129,7 +129,7 @@ func StartVM(vm *api.VM, debug bool) error {
 	vm.Status.Runtime = &api.Runtime{ID: containerID}
 
 	// Set the start time for the VM
-	startTime := meta.Timestamp()
+	startTime := apiruntime.Timestamp()
 	vm.Status.StartTime = &startTime
 
 	// Append the runtime IP address of the VM to its state
@@ -144,20 +144,11 @@ func StartVM(vm *api.VM, debug bool) error {
 	return providers.Client.VMs().Set(vm)
 }
 
-func verifyPulled(image string) error {
+// verifyPulled pulls the ignite-spawn image if it's not present
+func verifyPulled(image meta.OCIImageRef) error {
 	if _, err := providers.Runtime.InspectImage(image); err != nil {
 		log.Infof("Pulling image %q...", image)
-		rc, err := providers.Runtime.PullImage(image)
-		if err != nil {
-			return err
-		}
-
-		// Don't output the pull command
-		if _, err = io.Copy(ioutil.Discard, rc); err != nil {
-			return err
-		}
-
-		if err = rc.Close(); err != nil {
+		if err = providers.Runtime.PullImage(image); err != nil {
 			return err
 		}
 

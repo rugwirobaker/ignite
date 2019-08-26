@@ -2,13 +2,17 @@ package constants
 
 const (
 	// Common Ignite prefix
-	IGNITE_PREFIX = "ignite-"
+	IGNITE_PREFIX = "ignite"
 
 	// Ignite data base directory
 	DATA_DIR = "/var/lib/firecracker"
 
 	// Permissions for the data directory and its subdirectories
 	DATA_DIR_PERM = 0755
+
+	// Permissions for files in the data directory
+	// TODO: Make all writes to DATA_DIR use this
+	DATA_DIR_FILE_PERM = 644
 
 	// Filename for metadata files
 	METADATA = "metadata.json"

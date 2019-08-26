@@ -6,13 +6,13 @@ import (
 	"path"
 
 	log "github.com/sirupsen/logrus"
+	patchutil "github.com/weaveworks/gitops-toolkit/pkg/util/patch"
 	api "github.com/weaveworks/ignite/pkg/apis/ignite"
 	"github.com/weaveworks/ignite/pkg/apis/ignite/scheme"
 	"github.com/weaveworks/ignite/pkg/constants"
 	"github.com/weaveworks/ignite/pkg/container"
 	dmcleanup "github.com/weaveworks/ignite/pkg/dmlegacy/cleanup"
 	"github.com/weaveworks/ignite/pkg/prometheus"
-	patchutil "github.com/weaveworks/ignite/pkg/util/patch"
 )
 
 func main() {
@@ -93,5 +93,5 @@ func patchStopped(vm *api.VM) error {
 	*/
 
 	patch := []byte(`{"status":{"running":false,"ipAddresses":null,"runtime":null,"startTime":null}}`)
-	return patchutil.ApplyOnFile(constants.IGNITE_SPAWN_VM_FILE_PATH, patch, vm.GroupVersionKind())
+	return patchutil.NewPatcher(scheme.Serializer).ApplyOnFile(constants.IGNITE_SPAWN_VM_FILE_PATH, patch, vm.GroupVersionKind())
 }

@@ -12,6 +12,7 @@ import (
 
 	"github.com/goombaio/namegenerator"
 	log "github.com/sirupsen/logrus"
+	"github.com/weaveworks/ignite/pkg/constants"
 )
 
 // GenericCheckErr is used by the commands to check if the action failed
@@ -105,28 +106,18 @@ func NewMAC(buffer *[]string) error {
 	return nil
 }
 
-func RandomName() string {
-	return namegenerator.NewNameGenerator(time.Now().UTC().UnixNano()).Generate()
+func NewUID() (s string, err error) {
+	b := make([]byte, constants.IGNITE_UID_LENGTH/2)
+	if _, err = rand.Read(b); err == nil {
+		// Convert the byte slice to a string literally
+		s = fmt.Sprintf("%x", b)
+	}
+
+	return
 }
 
-func MatchPrefix(prefix string, fields ...string) ([]string, bool) {
-	var prefixMatches, exactMatches []string
-
-	for _, str := range fields {
-		if str == prefix {
-			exactMatches = append(exactMatches, str)
-		} else if strings.HasPrefix(str, prefix) {
-			prefixMatches = append(prefixMatches, str)
-		}
-	}
-
-	// If we have exact matches, return them
-	// and set the exact match boolean
-	if len(exactMatches) > 0 {
-		return exactMatches, true
-	}
-
-	return prefixMatches, false
+func RandomName() string {
+	return namegenerator.NewNameGenerator(time.Now().UTC().UnixNano()).Generate()
 }
 
 func TestRoot() error {
@@ -136,6 +127,24 @@ func TestRoot() error {
 	return fmt.Errorf("This program needs to run as root.")
 }
 
+// This is a light weight handler to capture
+// errors during detach that would otherwise
+// be silently ignored. Pass a pointer to the
+// error to be returned and the function to run.
+// TODO: Replace all ignored defers with this
+func DeferErr(err *error, f func() error) {
+	if err == nil {
+		panic("nil pointer given to DeferErr")
+	}
+
+	// If the given function returned an error
+	// and there isn't already an error to be
+	// returned, assign the function's error
+	if fErr := f(); fErr != nil && *err == nil {
+		*err = fErr
+	}
+}
+
 type Prefixer struct {
 	prefix    string
 	separator string
@@ -143,7 +152,7 @@ type Prefixer struct {
 
 func NewPrefixer() *Prefixer {
 	return &Prefixer{
-		prefix:    "ignite", // TODO: Remove the dash from IGNITE_PREFIX and use it here
+		prefix:    constants.IGNITE_PREFIX,
 		separator: "-",
 	}
 }

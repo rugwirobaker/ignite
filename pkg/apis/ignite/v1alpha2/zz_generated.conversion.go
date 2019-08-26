@@ -7,6 +7,7 @@ package v1alpha2
 import (
 	unsafe "unsafe"
 
+	pkgruntime "github.com/weaveworks/gitops-toolkit/pkg/runtime"
 	ignite "github.com/weaveworks/ignite/pkg/apis/ignite"
 	v1alpha1 "github.com/weaveworks/ignite/pkg/apis/meta/v1alpha1"
 	conversion "k8s.io/apimachinery/pkg/conversion"
@@ -340,7 +341,7 @@ func Convert_ignite_Image_To_v1alpha2_Image(in *ignite.Image, out *Image, s conv
 }
 
 func autoConvert_v1alpha2_ImageSpec_To_ignite_ImageSpec(in *ImageSpec, out *ignite.ImageSpec, s conversion.Scope) error {
-	out.OCI = v1alpha1.OCIImageRef(in.OCI)
+	out.OCI = in.OCI
 	return nil
 }
 
@@ -350,7 +351,7 @@ func Convert_v1alpha2_ImageSpec_To_ignite_ImageSpec(in *ImageSpec, out *ignite.I
 }
 
 func autoConvert_ignite_ImageSpec_To_v1alpha2_ImageSpec(in *ignite.ImageSpec, out *ImageSpec, s conversion.Scope) error {
-	out.OCI = v1alpha1.OCIImageRef(in.OCI)
+	out.OCI = in.OCI
 	return nil
 }
 
@@ -418,7 +419,7 @@ func Convert_ignite_Kernel_To_v1alpha2_Kernel(in *ignite.Kernel, out *Kernel, s 
 }
 
 func autoConvert_v1alpha2_KernelSpec_To_ignite_KernelSpec(in *KernelSpec, out *ignite.KernelSpec, s conversion.Scope) error {
-	out.OCI = v1alpha1.OCIImageRef(in.OCI)
+	out.OCI = in.OCI
 	return nil
 }
 
@@ -428,7 +429,7 @@ func Convert_v1alpha2_KernelSpec_To_ignite_KernelSpec(in *KernelSpec, out *ignit
 }
 
 func autoConvert_ignite_KernelSpec_To_v1alpha2_KernelSpec(in *ignite.KernelSpec, out *KernelSpec, s conversion.Scope) error {
-	out.OCI = v1alpha1.OCIImageRef(in.OCI)
+	out.OCI = in.OCI
 	return nil
 }
 
@@ -668,7 +669,7 @@ func Convert_ignite_VM_To_v1alpha2_VM(in *ignite.VM, out *VM, s conversion.Scope
 }
 
 func autoConvert_v1alpha2_VMImageSpec_To_ignite_VMImageSpec(in *VMImageSpec, out *ignite.VMImageSpec, s conversion.Scope) error {
-	out.OCI = v1alpha1.OCIImageRef(in.OCI)
+	out.OCI = in.OCI
 	return nil
 }
 
@@ -678,7 +679,7 @@ func Convert_v1alpha2_VMImageSpec_To_ignite_VMImageSpec(in *VMImageSpec, out *ig
 }
 
 func autoConvert_ignite_VMImageSpec_To_v1alpha2_VMImageSpec(in *ignite.VMImageSpec, out *VMImageSpec, s conversion.Scope) error {
-	out.OCI = v1alpha1.OCIImageRef(in.OCI)
+	out.OCI = in.OCI
 	return nil
 }
 
@@ -688,7 +689,7 @@ func Convert_ignite_VMImageSpec_To_v1alpha2_VMImageSpec(in *ignite.VMImageSpec, 
 }
 
 func autoConvert_v1alpha2_VMKernelSpec_To_ignite_VMKernelSpec(in *VMKernelSpec, out *ignite.VMKernelSpec, s conversion.Scope) error {
-	out.OCI = v1alpha1.OCIImageRef(in.OCI)
+	out.OCI = in.OCI
 	out.CmdLine = in.CmdLine
 	return nil
 }
@@ -699,7 +700,7 @@ func Convert_v1alpha2_VMKernelSpec_To_ignite_VMKernelSpec(in *VMKernelSpec, out 
 }
 
 func autoConvert_ignite_VMKernelSpec_To_v1alpha2_VMKernelSpec(in *ignite.VMKernelSpec, out *VMKernelSpec, s conversion.Scope) error {
-	out.OCI = v1alpha1.OCIImageRef(in.OCI)
+	out.OCI = in.OCI
 	out.CmdLine = in.CmdLine
 	return nil
 }
@@ -784,7 +785,7 @@ func Convert_ignite_VMSpec_To_v1alpha2_VMSpec(in *ignite.VMSpec, out *VMSpec, s 
 func autoConvert_v1alpha2_VMStatus_To_ignite_VMStatus(in *VMStatus, out *ignite.VMStatus, s conversion.Scope) error {
 	out.Running = in.Running
 	out.Runtime = (*ignite.Runtime)(unsafe.Pointer(in.Runtime))
-	out.StartTime = (*v1alpha1.Time)(unsafe.Pointer(in.StartTime))
+	out.StartTime = (*pkgruntime.Time)(unsafe.Pointer(in.StartTime))
 	out.IPAddresses = *(*v1alpha1.IPAddresses)(unsafe.Pointer(&in.IPAddresses))
 	if err := Convert_v1alpha2_OCIImageSource_To_ignite_OCIImageSource(&in.Image, &out.Image, s); err != nil {
 		return err
@@ -803,7 +804,7 @@ func Convert_v1alpha2_VMStatus_To_ignite_VMStatus(in *VMStatus, out *ignite.VMSt
 func autoConvert_ignite_VMStatus_To_v1alpha2_VMStatus(in *ignite.VMStatus, out *VMStatus, s conversion.Scope) error {
 	out.Running = in.Running
 	out.Runtime = (*Runtime)(unsafe.Pointer(in.Runtime))
-	out.StartTime = (*v1alpha1.Time)(unsafe.Pointer(in.StartTime))
+	out.StartTime = (*pkgruntime.Time)(unsafe.Pointer(in.StartTime))
 	out.IPAddresses = *(*v1alpha1.IPAddresses)(unsafe.Pointer(&in.IPAddresses))
 	if err := Convert_ignite_OCIImageSource_To_v1alpha2_OCIImageSource(&in.Image, &out.Image, s); err != nil {
 		return err
