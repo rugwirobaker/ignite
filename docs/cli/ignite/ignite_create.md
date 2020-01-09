@@ -19,7 +19,7 @@ can be added to the VM during creation with the syntax
 /host/path:/vm/path.
 
 Example usage:
-	$ ignite create centos:7 \
+	$ ignite create weaveworks/ignite-ubuntu \
 		--name my-vm \
 		--cpus 2 \
 		--ssh \
@@ -52,8 +52,9 @@ ignite create <OCI image> [flags]
 
 ```
       --log-level loglevel      Specify the loglevel for the program (default info)
-      --network-plugin plugin   Network plugin to use. Available options are: [cni docker-bridge] (default docker-bridge)
+      --network-plugin plugin   Network plugin to use. Available options are: [cni docker-bridge] (default cni)
   -q, --quiet                   The quiet mode allows for machine-parsable output by printing only IDs
+      --runtime runtime         Container runtime to use. Available options are: [docker containerd] (default containerd)
 ```
 
 ### SEE ALSO

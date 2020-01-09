@@ -10,6 +10,7 @@ import (
 	"github.com/weaveworks/ignite/pkg/client"
 	"github.com/weaveworks/ignite/pkg/dmlegacy"
 	"github.com/weaveworks/ignite/pkg/operations"
+	"github.com/weaveworks/ignite/pkg/providers"
 	"github.com/weaveworks/ignite/pkg/util"
 )
 
@@ -27,6 +28,7 @@ func ReconcileManifests(s *manifest.ManifestStorage) {
 		// Only care about VMs
 		if upd.APIType.GetKind() != api.KindVM {
 			log.Tracef("GitOps: Ignoring kind %s", upd.APIType.GetKind())
+			kindIgnored.Inc()
 			continue
 		}
 
@@ -65,6 +67,7 @@ func ReconcileManifests(s *manifest.ManifestStorage) {
 			runHandle(func() error {
 				return handleChange(vm)
 			})
+
 		case update.ObjectEventDelete:
 			runHandle(func() error {
 				// TODO: Temporary VM Object for removal
@@ -84,16 +87,17 @@ func runHandle(fn func() error) {
 	}
 }
 
-func handleChange(vm *api.VM) error {
-	var err error
-
-	if vm.Status.Running {
+func handleChange(vm *api.VM) (err error) {
+	// Only apply the new state if it
+	// differs from the current state
+	running := currentState(vm)
+	if vm.Status.Running && !running {
 		err = start(vm)
-	} else {
+	} else if !vm.Status.Running && running {
 		err = stop(vm)
 	}
 
-	return err
+	return
 }
 
 func handleDelete(vm *api.VM) error {
@@ -106,7 +110,7 @@ func create(vm *api.VM) error {
 	if err := ensureOCIImages(vm); err != nil {
 		return err
 	}
-
+	vmCreated.Inc()
 	// Allocate and populate the overlay file
 	return dmlegacy.AllocateAndPopulateOverlay(vm)
 }
@@ -144,18 +148,27 @@ func start(vm *api.VM) error {
 	}
 
 	log.Infof("Starting VM %q with name %q...", vm.GetUID(), vm.GetName())
+	vmStarted.Inc()
 	return operations.StartVM(vm, true)
 }
 
 func stop(vm *api.VM) error {
 	log.Infof("Stopping VM %q with name %q...", vm.GetUID(), vm.GetName())
+	vmStopped.Inc()
 	return operations.StopVM(vm, true, false)
 }
 
 func remove(vm *api.VM) error {
 	log.Infof("Removing VM %q with name %q...", vm.GetUID(), vm.GetName())
-
+	vmDeleted.Inc()
 	// Object deletion is performed by the SyncStorage, so we just
 	// need to clean up any remaining resources of the VM here
 	return operations.CleanupVM(vm)
+}
+
+// TODO: Quick hack to get the current state of the VM,
+// as the update via the storage overwrites the previous state
+func currentState(vm *api.VM) bool {
+	_, err := providers.Runtime.InspectContainer(util.NewPrefixer().Prefix(vm.GetUID()))
+	return err == nil
 }

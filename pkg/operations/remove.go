@@ -2,10 +2,12 @@ package operations
 
 import (
 	"fmt"
+	"os"
 
 	log "github.com/sirupsen/logrus"
 	api "github.com/weaveworks/ignite/pkg/apis/ignite"
 	"github.com/weaveworks/ignite/pkg/client"
+	"github.com/weaveworks/ignite/pkg/dmlegacy/cleanup"
 	"github.com/weaveworks/ignite/pkg/logs"
 	"github.com/weaveworks/ignite/pkg/providers"
 	"github.com/weaveworks/ignite/pkg/runtime"
@@ -28,7 +30,7 @@ func DeleteVM(c *client.Client, vm *api.VM) error {
 // CleanupVM removes the resources of the given VM
 func CleanupVM(vm *api.VM) error {
 	// Inspect the container before trying to stop it and it gets auto-removed
-	result, _ := providers.Runtime.InspectContainer(util.NewPrefixer().Prefix(vm.GetUID()))
+	inspectResult, _ := providers.Runtime.InspectContainer(util.NewPrefixer().Prefix(vm.GetUID()))
 
 	// If the VM is running, try to kill it first so we don't leave dangling containers
 	if vm.Running() {
@@ -38,8 +40,15 @@ func CleanupVM(vm *api.VM) error {
 	}
 
 	// Remove the VM container if it exists
-	if err := RemoveVMContainer(result); err != nil {
-		return err
+	// TODO should this function return a proper error?
+	RemoveVMContainer(inspectResult)
+
+	// After remove the VM container, and the SnapshotDev still there
+	if _, err := os.Stat(vm.SnapshotDev()); err == nil {
+		// try remove it again with DeactivateSnapshot
+		if err := cleanup.DeactivateSnapshot(vm); err != nil {
+			return err
+		}
 	}
 
 	if logs.Quiet {
@@ -51,9 +60,9 @@ func CleanupVM(vm *api.VM) error {
 	return nil
 }
 
-func RemoveVMContainer(result *runtime.ContainerInspectResult) error {
+func RemoveVMContainer(result *runtime.ContainerInspectResult) {
 	if result == nil {
-		return nil // If given no result, don't attempt removal
+		return // If given no result, don't attempt removal
 	}
 
 	// Remove the VM container. If the container has been/is being automatically removed
@@ -61,9 +70,6 @@ func RemoveVMContainer(result *runtime.ContainerInspectResult) error {
 	// we have no real way to inspect and remove immediately without having a potential race
 	// condition, so ignore the error for now. TODO: Robust conditional remove support
 	_ = providers.Runtime.RemoveContainer(result.ID)
-
-	// Tear down the networking of the VM
-	return removeNetworking(result.ID)
 }
 
 // StopVM stops or kills a VM
@@ -71,6 +77,11 @@ func StopVM(vm *api.VM, kill, silent bool) error {
 	var err error
 	container := util.NewPrefixer().Prefix(vm.GetUID())
 	action := "stop"
+
+	// Remove VM networking
+	if err = removeNetworking(util.NewPrefixer().Prefix(vm.GetUID())); err != nil {
+		return err
+	}
 
 	// Stop or kill the VM container
 	if kill {
@@ -98,6 +109,6 @@ func StopVM(vm *api.VM, kill, silent bool) error {
 }
 
 func removeNetworking(containerID string) error {
-	log.Debugf("Removing the container with ID %q from the %q network", containerID, providers.NetworkPlugin.Name())
+	log.Infof("Removing the container with ID %q from the %q network", containerID, providers.NetworkPlugin.Name())
 	return providers.NetworkPlugin.RemoveContainerNetwork(containerID)
 }

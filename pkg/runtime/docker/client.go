@@ -13,8 +13,14 @@ import (
 	cont "github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	meta "github.com/weaveworks/ignite/pkg/apis/meta/v1alpha1"
+	"github.com/weaveworks/ignite/pkg/preflight"
+	"github.com/weaveworks/ignite/pkg/preflight/checkers"
 	"github.com/weaveworks/ignite/pkg/runtime"
 	"github.com/weaveworks/ignite/pkg/util"
+)
+
+const (
+	dcSocket = "/var/run/docker.sock"
 )
 
 // dockerClient is a runtime.Interface
@@ -35,10 +41,6 @@ func GetDockerClient() (*dockerClient, error) {
 	return &dockerClient{
 		client: cli,
 	}, nil
-}
-
-func (dc *dockerClient) RawClient() interface{} {
-	return dc.client
 }
 
 func (dc *dockerClient) PullImage(image meta.OCIImageRef) (err error) {
@@ -128,7 +130,7 @@ func (dc *dockerClient) AttachContainer(container string) (err error) {
 	return
 }
 
-func (dc *dockerClient) RunContainer(image meta.OCIImageRef, config *runtime.ContainerConfig, name string) (string, error) {
+func (dc *dockerClient) RunContainer(image meta.OCIImageRef, config *runtime.ContainerConfig, name, id string) (string, error) {
 	binds := make([]string, 0, len(config.Binds))
 	for _, bind := range config.Binds {
 		binds = append(binds, fmt.Sprintf("%s:%s", bind.HostPath, bind.ContainerPath))
@@ -213,6 +215,18 @@ func (dc *dockerClient) ContainerLogs(container string) (io.ReadCloser, error) {
 	return dc.client.ContainerLogs(context.Background(), container, types.ContainerLogsOptions{
 		ShowStdout: true, // We only need stdout, as TTY mode merges stderr into it
 	})
+}
+
+func (cc *dockerClient) Name() runtime.Name {
+	return runtime.RuntimeDocker
+}
+
+func (dc *dockerClient) RawClient() interface{} {
+	return dc.client
+}
+
+func (dc *dockerClient) PreflightChecker() preflight.Checker {
+	return checkers.NewExistingFileChecker(dcSocket)
 }
 
 func (dc *dockerClient) waitForContainer(container string, condition cont.WaitCondition, readyC *chan struct{}) error {

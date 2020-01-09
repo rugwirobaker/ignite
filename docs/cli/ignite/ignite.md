@@ -18,7 +18,7 @@ Combining an Image and a Kernel gives you a runnable VM.
 
 Example usage:
 
-	$ ignite run centos:7 \
+	$ ignite run weaveworks/ignite-ubuntu \
 		--cpus 2 \
 		--memory 2GB \
 		--ssh \
@@ -35,8 +35,9 @@ Example usage:
 ```
   -h, --help                    help for ignite
       --log-level loglevel      Specify the loglevel for the program (default info)
-      --network-plugin plugin   Network plugin to use. Available options are: [cni docker-bridge] (default docker-bridge)
+      --network-plugin plugin   Network plugin to use. Available options are: [cni docker-bridge] (default cni)
   -q, --quiet                   The quiet mode allows for machine-parsable output by printing only IDs
+      --runtime runtime         Container runtime to use. Available options are: [docker containerd] (default containerd)
 ```
 
 ### SEE ALSO

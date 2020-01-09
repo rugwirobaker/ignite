@@ -1,11 +1,15 @@
 package util
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 
 	"github.com/otiai10/copy"
+	log "github.com/sirupsen/logrus"
 	"github.com/weaveworks/ignite/pkg/constants"
 )
 
@@ -45,6 +49,25 @@ func DirExists(dirname string) bool {
 	}
 
 	return info.IsDir()
+}
+
+func DirEmpty(dirname string) (b bool) {
+	if !DirExists(dirname) {
+		return
+	}
+
+	f, err := os.Open(dirname)
+	if err != nil {
+		return
+	}
+	defer func() { _ = f.Close() }()
+
+	// If the first file is EOF, the directory is empty
+	if _, err = f.Readdir(1); err == io.EOF {
+		b = true
+	}
+
+	return
 }
 
 func IsDeviceFile(filename string) (err error) {
@@ -114,4 +137,39 @@ func FileIsEmpty(file string) (bool, error) {
 	}
 
 	return true, nil
+}
+
+// WriteFileIfChanged stores a sha of data at <filename>.sha256 and determines whether to
+// rewrite the file; it has the same signature as ioutil.WriteFile().
+func WriteFileIfChanged(filename string, data []byte, perm os.FileMode) error {
+	shaFile := filename + ".sha256"
+
+	currentHashBytes, err := ioutil.ReadFile(shaFile)
+	currentHashStr := string(currentHashBytes)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	newHashHex := sha256.Sum256(data)
+	newHashStr := hex.EncodeToString(newHashHex[:])
+
+	if newHashStr != currentHashStr {
+		log.Debugf("Writing %q with new hash: %q, old hash: %q", filename, newHashStr, currentHashStr)
+		err = ioutil.WriteFile(
+			shaFile,
+			[]byte(newHashStr),
+			perm,
+		)
+		if err != nil {
+			return err
+		}
+		return ioutil.WriteFile(
+			filename,
+			data,
+			perm,
+		)
+	}
+	log.Debugf("%q with hash %q is unchanged", filename, newHashStr)
+
+	return nil
 }

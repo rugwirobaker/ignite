@@ -23,9 +23,7 @@ import (
 func StartVM(vm *api.VM, debug bool) error {
 	// Inspect the VM container and remove it if it exists
 	inspectResult, _ := providers.Runtime.InspectContainer(util.NewPrefixer().Prefix(vm.GetUID()))
-	if err := RemoveVMContainer(inspectResult); err != nil {
-		return err
-	}
+	RemoveVMContainer(inspectResult)
 
 	// Setup the snapshot overlay filesystem
 	if err := dmlegacy.ActivateSnapshot(vm); err != nil {
@@ -104,19 +102,21 @@ func StartVM(vm *api.VM, debug bool) error {
 	}
 
 	// Run the VM container in Docker
-	containerID, err := providers.Runtime.RunContainer(igniteImage, config, util.NewPrefixer().Prefix(vm.GetUID()))
+	containerID, err := providers.Runtime.RunContainer(igniteImage, config, util.NewPrefixer().Prefix(vm.GetUID()), vm.GetUID().String())
 	if err != nil {
 		return fmt.Errorf("failed to start container for VM %q: %v", vm.GetUID(), err)
 	}
 
 	// Set up the networking
-	result, err := providers.NetworkPlugin.SetupContainerNetwork(containerID)
+	result, err := providers.NetworkPlugin.SetupContainerNetwork(containerID, vm.Spec.Network.Ports...)
 	if err != nil {
 		return err
 	}
 
-	log.Infof("Networking is handled by %q", providers.NetworkPlugin.Name())
-	log.Infof("Started Firecracker VM %q in a container with ID %q", vm.GetUID(), containerID)
+	if !logs.Quiet {
+		log.Infof("Networking is handled by %q", providers.NetworkPlugin.Name())
+		log.Infof("Started Firecracker VM %q in a container with ID %q", vm.GetUID(), containerID)
+	}
 
 	// TODO: Follow-up the container here with a defer, or dedicated goroutine. We should output
 	// if it started successfully or not

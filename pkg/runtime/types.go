@@ -1,11 +1,13 @@
 package runtime
 
 import (
+	"fmt"
 	"io"
 	"net"
 	"time"
 
 	meta "github.com/weaveworks/ignite/pkg/apis/meta/v1alpha1"
+	"github.com/weaveworks/ignite/pkg/preflight"
 )
 
 type ImageInspectResult struct {
@@ -54,11 +56,38 @@ type Interface interface {
 
 	InspectContainer(container string) (*ContainerInspectResult, error)
 	AttachContainer(container string) error
-	RunContainer(image meta.OCIImageRef, config *ContainerConfig, name string) (string, error)
+	RunContainer(image meta.OCIImageRef, config *ContainerConfig, name, id string) (string, error)
 	StopContainer(container string, timeout *time.Duration) error
 	KillContainer(container, signal string) error
 	RemoveContainer(container string) error
 	ContainerLogs(container string) (io.ReadCloser, error)
 
+	Name() Name
 	RawClient() interface{}
+
+	PreflightChecker() preflight.Checker
+}
+
+// Name defines a name for a runtime
+type Name string
+
+var _ fmt.Stringer = Name("")
+
+func (n Name) String() string {
+	return string(n)
+}
+
+const (
+	// RuntimeDocker specifies the Docker runtime
+	RuntimeDocker Name = "docker"
+	// RuntimeContainerd specifies the containerd runtime
+	RuntimeContainerd Name = "containerd"
+)
+
+// ListRuntimes gets the list of available runtimes
+func ListRuntimes() []Name {
+	return []Name{
+		RuntimeDocker,
+		RuntimeContainerd,
+	}
 }

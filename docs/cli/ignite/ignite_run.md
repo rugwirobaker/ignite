@@ -11,7 +11,7 @@ create and start a VM. The interactive flag (-i, --interactive) can be
 specified to immediately attach to the started VM after creation.
 
 Example usage:
-	$ ignite run centos:7 \
+	$ ignite run weaveworks/ignite-ubuntu \
 		--interactive \
 		--name my-vm \
 		--cpus 2 \
@@ -47,8 +47,9 @@ ignite run <OCI image> [flags]
 
 ```
       --log-level loglevel      Specify the loglevel for the program (default info)
-      --network-plugin plugin   Network plugin to use. Available options are: [cni docker-bridge] (default docker-bridge)
+      --network-plugin plugin   Network plugin to use. Available options are: [cni docker-bridge] (default cni)
   -q, --quiet                   The quiet mode allows for machine-parsable output by printing only IDs
+      --runtime runtime         Container runtime to use. Available options are: [docker containerd] (default containerd)
 ```
 
 ### SEE ALSO

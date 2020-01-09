@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 
+	meta "github.com/weaveworks/ignite/pkg/apis/meta/v1alpha1"
 	"github.com/weaveworks/ignite/pkg/runtime"
 )
 
@@ -17,7 +18,7 @@ type Plugin interface {
 
 	// SetupContainerNetwork sets up the networking for a container
 	// This is ran _after_ the container has been started
-	SetupContainerNetwork(containerID string) (*Result, error)
+	SetupContainerNetwork(containerID string, portmappings ...meta.PortMapping) (*Result, error)
 
 	// RemoveContainerNetwork is the method called before a container using the network plugin can be deleted
 	RemoveContainerNetwork(containerID string) error
@@ -40,10 +41,6 @@ var _ fmt.Stringer = PluginName("")
 func (pn PluginName) String() string {
 	return string(pn)
 }
-
-// ActivePlugin is set at runtime to the plugin that is chosen to be active.
-// The default mode is docker-bridge
-var ActivePlugin = PluginDockerBridge
 
 const (
 	// PluginCNI specifies the network mode where CNI is used
